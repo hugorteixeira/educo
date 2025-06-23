@@ -9,6 +9,11 @@ Basic movement via Arduino + potentiometer (video below)
 
 [![Demo](thumb.png)](demo_arduino.mp4)
 
+<video width="480" controls>
+  <source src="https://raw.githubusercontent.com/hugorteixeira/educo/main/demo_arduino.mp4" type="video/mp4">
+  Seu navegador não suporta vídeo HTML5.
+</video>
+
 ## 🔧 Parts List ($35 total - AliExpress)
 - Generic Arm: ~$16
 - 4x SG90 Servos: ~$4
