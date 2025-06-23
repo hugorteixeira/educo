@@ -7,6 +7,8 @@ Build ultra-cheap educational robotics platform for schools/NGOs, controllable b
 ## 📹 Current Demo
 Basic movement via Arduino + potentiometer (video below)
 
+[![Demo](thumb.png)](demo_arduino.mp4)
+
 ## 🔧 Parts List ($35 total - AliExpress)
 - Generic Arm: ~$16
 - 4x SG90 Servos: ~$4
