@@ -1,18 +1,15 @@
 # EduCO
 Low cost robot and AI integrations (pending). Play with Arduino, ESP32, Raspberry Pi or Orange Pi.
 
+[![Demo](educo_1.png)]
+
 ## 🎯 Objective
 Build ultra-cheap educational robotics platform for schools/NGOs, controllable by SBCs (Single Board Computers) and Controllers.
 
 ## 📹 Current Demo
 Basic movement via Arduino + potentiometer (video below)
 
-[![Demo](thumb.png)](demo_arduino.mp4)
-
-<video width="480" controls>
-  <source src="https://raw.githubusercontent.com/hugorteixeira/educo/main/demo_arduino.mp4" type="video/mp4">
-  Seu navegador não suporta vídeo HTML5.
-</video>
+[![Demo](thumb.png)]
 
 ## 🔧 Parts List ($35 total - AliExpress)
 - Generic Arm: ~$16
