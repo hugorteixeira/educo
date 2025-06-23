@@ -28,6 +28,10 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 - 📋 Voice interaction (planned)
 - 📋 Web remote control (planned)
 
+## 💡 Credits (pending)
+
+This project was started in Sao Paulo at the HuggingFace LeRobot Hackhaton 2025.
+
 ## 🤝 Want to Help?
 - Test with different SBCs
 - Improve servo control code
