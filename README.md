@@ -7,7 +7,7 @@ Low cost robot and AI integrations (pending). Play with Arduino, ESP32, Raspberr
 Build ultra-cheap educational robotics platform for schools/NGOs, controllable by SBCs (Single Board Computers) and Controllers. See the about video, [click here.](https://github.com/hugorteixeira/educo/raw/refs/heads/main/about_educo.mp4) 
 
 ## 📹 Current Demo
-Basic movement via Arduino + potentiometer. See the [video demo](https://github.com/hugorteixeira/educo/raw/refs/heads/main/demo_arduino.mp4)
+Basic movement via Arduino + potentiometer. See the [video demo.](https://github.com/hugorteixeira/educo/raw/refs/heads/main/demo_arduino.mp4)
 
 ![Demo](thumb.png)
 
@@ -26,7 +26,7 @@ Basic movement via Arduino + potentiometer. See the [video demo](https://github.
 - 🔄 Phosphobot integration
 - 📋 Camera + AI vision (planned)
 - 📋 Voice interaction (planned)
-- 📋 Voice interaction (planned)
+- 📋 Web remote control (planned)
 
 ## 🤝 Want to Help?
 - Test with different SBCs
