@@ -1,0 +1,52 @@
+Orange Pi 5 Instructions
+
+1 - Update and install basics.
+
+sudo apt update
+sudo apt install git build-essential
+
+2 - Get files.
+
+git clone https://github.com/orangepi-xunlong/WiringOP.git
+
+3 - Build WiringOP.
+
+cd WiringOP
+chmod +x ./build
+sudo ./build
+
+4 - Run gpio.
+
+gpio mode PIN pwm
+gpio pwm-ms
+
+5 - Set all necessary pins to PWM.
+
+gpio mode 0 pwm
+gpio mode 2 pwm
+gpio mode 5 pwm
+gpio mode 8 pwm
+
+6 - Run gpio readall, you get something like this:
+
+ +------+-----+----------+--------+---+   OPI5   +---+--------+----------+-----+------+
+ | GPIO | wPi |   Name   |  Mode  | V | Physical | V |  Mode  | Name     | wPi | GPIO |
+ +------+-----+----------+--------+---+----++----+---+--------+----------+-----+------+
+ |      |     |     3.3V |        |   |  1 || 2  |   |        | 5V       |     |      |
+ |   47 |   0 |    SDA.5 |  ALT11 | 0 |  3 || 4  |   |        | 5V       |     |      |
+ |   46 |   1 |    SCL.5 |     IN | 1 |  5 || 6  |   |        | GND      |     |      |
+ |   54 |   2 |    PWM15 |  ALT11 | 0 |  7 || 8  | 0 | IN     | RXD.0    | 3   | 131  |
+ |      |     |      GND |        |   |  9 || 10 | 0 | IN     | TXD.0    | 4   | 132  |
+ |  138 |   5 |  CAN1_RX |  ALT11 | 0 | 11 || 12 | 1 | IN     | CAN2_TX  | 6   | 29   |
+ |  139 |   7 |  CAN1_TX |     IN | 1 | 13 || 14 |   |        | GND      |     |      |
+ |   28 |   8 |  CAN2_RX |   ALT3 | 0 | 15 || 16 | 1 | IN     | SDA.1    | 9   | 59   |
+ |      |     |     3.3V |        |   | 17 || 18 | 1 | IN     | SCL.1    | 10  | 58   |
+ |   49 |  11 | SPI4_TXD |     IN | 1 | 19 || 20 |   |        | GND      |     |      |
+ |   48 |  12 | SPI4_RXD |     IN | 1 | 21 || 22 | 1 | IN     | GPIO2_D4 | 13  | 92   |
+ |   50 |  14 | SPI4_CLK |     IN | 1 | 23 || 24 | 1 | IN     | SPI4_CS1 | 15  | 52   |
+ |      |     |      GND |        |   | 25 || 26 | 1 | IN     | PWM1     | 16  | 35   |
+ +------+-----+----------+--------+---+----++----+---+--------+----------+-----+------+
+ | GPIO | wPi |   Name   |  Mode  | V | Physical | V |  Mode  | Name     | wPi | GPIO |
+ +------+-----+----------+--------+---+   OPI5   +---+--------+----------+-----+------+
+
+7 - Run ./robot_controller.sh, type demo, hit Enter.
