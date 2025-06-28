@@ -1,361 +1,211 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# ============================================================
+# Controle de Servos – Orange Pi 5 / WiringOP
+#   • tipo pos  → ângulo  –90…+90
+#   • tipo cr   → velocidade –100…+100
+#   – demo, batch, record/play, raw, etc.
+#   – configurando PWM por PINO  (sem “Usage: gpio …”)
+# ============================================================
 
-# Configurações
-SERVO_PINS="0 2 5 8"  # Pinos dos servos
-MIN_PULSE=100
-MAX_PULSE=200
-PULSE_RANGE=$((MAX_PULSE - MIN_PULSE))
-PWM_FREQ=192
-PWM_RANGE=2000
+######################### CONFIGURAÇÃO ########################
+SERVO_MAP="0:pos 2:pos 5:pos 8:pos"
+
+MIN_PULSE=50          # 0,50 ms
+MAX_PULSE=250         # 2,50 ms
+ANGLE_MIN=-180
+ANGLE_MAX=+180
+ANGLE_OFFSET=90
+
+declare -A STOP_PULSE_CR GAIN_CR
+STOP_PULSE_CR[2]=140
+GAIN_CR[2]=2
+
+PWM_FREQ=192          # clock divisor
+PWM_RANGE=2000        # 1 unid = 10 µs
+
 SMOOTH_STEPS=20
 STEP_DELAY=0.02
+################################################################
 
-# Posições atuais dos servos (variáveis simples)
-current_pulse_0=150
-current_pulse_2=150
-current_pulse_5=150
-current_pulse_8=150
+PULSE_RANGE=$((MAX_PULSE - MIN_PULSE))
+
+# ---- arrays de pinos e tipos ----
+declare -a PINS
+declare -A type
+for pair in $SERVO_MAP; do
+    p=${pair%%:*}; t=${pair##*:}
+    PINS+=( "$p" ); type[$p]=$t
+done
+SERVO_PINS="${PINS[*]}"
+
+declare -A cur           # último pulso
+declare -a recording     # buffer para record/play
+
+##################### FUNÇÕES BÁSICAS ##########################
+
+pwm_write() {                     # pwm_write <pin> <valor>
+    local p=$1 v=$2
+    (( v < 0 )) && v=0
+    (( v > PWM_RANGE )) && v=$PWM_RANGE
+    gpio pwm "$p" "$v"
+    cur[$p]=$v
+}
+
+config_pwm_pin() {                # config_pwm_pin <pin>
+    local p=$1
+    gpio mode "$p" pwm
+    gpio pwm-ms "$p"
+    gpio pwmc  "$p" "$PWM_FREQ"
+    gpio pwmr  "$p" "$PWM_RANGE"
+}
 
 init_servo() {
-    echo "Inicializando servos..."
-    gpio pwm-ms
-    gpio pwmc $PWM_FREQ
-    gpio pwmr $PWM_RANGE
-    
-    # Inicializa todos os servos
-    for pin in $SERVO_PINS; do
-        gpio mode $pin pwm
-        # Posição central
-        center_pulse=$((MIN_PULSE + PULSE_RANGE/2))
-        gpio pwm $pin $center_pulse
-        
-        # Atualiza variável de posição correspondente
-        case $pin in
-            0) current_pulse_0=$center_pulse ;;
-            2) current_pulse_2=$center_pulse ;;
-            5) current_pulse_5=$center_pulse ;;
-            8) current_pulse_8=$center_pulse ;;
-        esac
-        
-        echo "Servo no pino $pin inicializado na posição central"
+    echo "Inicializando…"
+
+    # pulso de repouso para cada tipo
+    local centre=$((MIN_PULSE + PULSE_RANGE/2))
+
+    for p in $SERVO_PINS; do
+        # 1) coloca em PWM e já configura clock e range
+        config_pwm_pin "$p"
+
+        # 2) valor inicial = repouso (NÃO zero!)
+        if [[ ${type[$p]} == pos ]]; then
+            pwm_write "$p" "$centre"           # 1,5 ms
+        else
+            pwm_write "$p" "${STOP_PULSE_CR[$p]:-150}"
+        fi
     done
-    sleep 1
+
+    # 3) espera 25 ms (um período) para que o 1º pulso “bom” seja emitido
+    sleep 0.025
+
+    echo "Servos prontos."
 }
 
-# Movimento suave para servo específico
-move_smooth() {
-    local servo_pin=$1
-    local target_angle=$2
-    local target_pulse step_size i current_pulse
-    
-    # Validação do ângulo
-    if [ "$target_angle" -lt 0 ] || [ "$target_angle" -gt 180 ]; then
-        echo "Erro: Ângulo deve ser entre 0 e 180"
-        return 1
-    fi
-    
-    target_pulse=$((MIN_PULSE + PULSE_RANGE * target_angle / 180))
-    
-    # Pega posição atual do servo correspondente
-    case $servo_pin in
-        0) current_pulse=$current_pulse_0 ;;
-        2) current_pulse=$current_pulse_2 ;;
-        5) current_pulse=$current_pulse_5 ;;
-        8) current_pulse=$current_pulse_8 ;;
-        *) echo "Erro: Pino $servo_pin não configurado"; return 1 ;;
-    esac
-    
-    echo "Movendo servo pino $servo_pin para angulo: ${target_angle} graus (pulse: $target_pulse)"
-    
-    # Calcula o tamanho do passo
-    step_size=$(((target_pulse - current_pulse) / SMOOTH_STEPS))
-    
-    # Se o passo for muito pequeno, move direto
-    if [ "${step_size#-}" -lt 1 ]; then
-        gpio pwm $servo_pin $target_pulse
-        # Atualiza posição atual
-        case $servo_pin in
-            0) current_pulse_0=$target_pulse ;;
-            2) current_pulse_2=$target_pulse ;;
-            5) current_pulse_5=$target_pulse ;;
-            8) current_pulse_8=$target_pulse ;;
-        esac
-        return 0
-    fi
-    
-    echo "Movendo de $current_pulse para $target_pulse (passo: $step_size)"
-    
-    # Move gradualmente
-    i=0
-    while [ $i -lt $SMOOTH_STEPS ]; do
-        current_pulse=$((current_pulse + step_size))
-        gpio pwm $servo_pin $current_pulse
-        sleep $STEP_DELAY
-        i=$((i + 1))
+##################### POSICIONAIS ##############################
+move_smooth() {          # <pin> <angulo>
+    local p=$1 ang=$2
+    [[ $ang =~ ^-?[0-9]+$ && $ang -ge $ANGLE_MIN && $ang -le $ANGLE_MAX ]] \
+        || { echo "Ângulo deve ser $ANGLE_MIN…$ANGLE_MAX"; return 1; }
+    local norm=$(( ang + ANGLE_OFFSET ))
+    local tgt=$(( MIN_PULSE + PULSE_RANGE * norm / 180 ))
+    local curv=${cur[$p]:-$((MIN_PULSE + PULSE_RANGE/2))}
+    local step=$(((tgt - curv)/SMOOTH_STEPS))
+    (( ${step#-} < 1 )) && step=$(( step<0 ? -1 : 1 ))
+    for ((i=0;i<SMOOTH_STEPS;i++)); do
+        curv=$((curv+step)); pwm_write "$p" "$curv"; sleep "$STEP_DELAY"
     done
-    
-    # Garante posição final exata
-    gpio pwm $servo_pin $target_pulse
-    
-    # Atualiza posição atual correspondente
-    case $servo_pin in
-        0) current_pulse_0=$target_pulse ;;
-        2) current_pulse_2=$target_pulse ;;
-        5) current_pulse_5=$target_pulse ;;
-        8) current_pulse_8=$target_pulse ;;
-    esac
-    
-    echo "Movimento completo para servo pino $servo_pin"
+    pwm_write "$p" "$tgt"
 }
 
-# Movimento direto (brusco) para servo específico
-move_direct() {
-    local servo_pin=$1
-    local angle=$2
-    local pulse=$((MIN_PULSE + PULSE_RANGE * angle / 180))
-    
-    gpio pwm $servo_pin $pulse
-    
-    # Atualiza posição atual
-    case $servo_pin in
-        0) current_pulse_0=$pulse ;;
-        2) current_pulse_2=$pulse ;;
-        5) current_pulse_5=$pulse ;;
-        8) current_pulse_8=$pulse ;;
-    esac
-    
-    echo "Movimento direto servo pino $servo_pin para ${angle} graus"
+move_direct() {          # <pin> <angulo>
+    local p=$1 ang=$2
+    local pulse=$(( MIN_PULSE + PULSE_RANGE * (ang+ANGLE_OFFSET) / 180 ))
+    pwm_write "$p" "$pulse"
+    echo "Direto: $p ← $ang° (pulso $pulse)"
 }
 
-cleanup() {
-    echo "Parando servos..."
-    for pin in $SERVO_PINS; do
-        gpio pwm $pin 0
+####################### CONTÍNUOS ##############################
+move_speed() {           # <pin> <vel -100..100>
+    local p=$1 vel=$2
+    [[ $vel =~ ^-?[0-9]+$ && $vel -ge -100 && $vel -le 100 ]] \
+        || { echo "Velocidade -100…+100"; return 1; }
+    local pulse=$(( STOP_PULSE_CR[$p] + vel * GAIN_CR[$p] ))
+    pwm_write "$p" "$pulse"
+}
+
+####################### UTILITÁRIOS ############################
+send_raw()   { pwm_write "$1" "$2"; echo "RAW $1 ← $2"; }
+center_all() { for p in $SERVO_PINS; do [[ ${type[$p]} == pos ]] && move_smooth "$p" 0 || move_speed "$p" 0; done; }
+
+run_cmd() {                # executa 1 linha de batch
+    local cmd=$1; shift
+    case $cmd in
+        ''|\#*) ;;            # vazio ou comentário
+        sleep) sleep "${1:-0}" ;;
+        center) center_all ;;
+        raw)   send_raw   "$@" ;;
+        speed) move_speed "$@" ;;
+        direct) move_direct "$@" ;;
+        *)
+            p=$cmd; val=$1
+            [[ -z ${type[$p]} ]] && { echo "Pino inválido"; return; }
+            [[ ${type[$p]} == pos ]] && move_smooth "$p" "$val" || move_speed "$p" "$val"
+            ;;
+    esac
+}
+
+run_batch() {               # <arquivo> | stdin
+    while IFS= read -r line; do
+        run_cmd $line
+    done < "${1:-/dev/stdin}"
+}
+
+######################## DEMO ##################################
+demo() {
+    local -a sequence=(
+        # ---------- exemplo ----------
+        "2 45"          # pino 5 → −30°
+	"2 0"
+	"2 45"
+        "0 45"
+	"0 0"
+	"0 -45"
+	"0 0"
+	"0 45"
+        "5 90"
+	"5 45"
+	"8 -45"
+	"8 0"
+	"8 -45"
+	"center"
+        # ---------- fim do exemplo ---
+    )
+
+    echo "=== DEMO PERSONALIZADA ==="
+    for line in "${sequence[@]}"; do
+        run_cmd $line
     done
-    exit 0
+    echo "=== FIM DEMO ==="
 }
-
-# Modo Demo - Sequência específica
-demo_mode() {
-    echo "=== MODO DEMO - Iniciando sequência ==="
-    echo "Aguarde 2 segundos para começar..."
-    sleep 2
-    
-    echo "--- Fase 1: Servo GPIO 0 ---"
-    echo "GPIO 2: 90 graus -> 180 graus"
-    move_smooth 0 90
-    sleep 1
-    move_smooth 0 180
-    sleep 1
-    
-    echo "GPIO 8: 180 graus -> 90 graus"
-    move_smooth 2 90
-    sleep 1
-    
-    echo "--- Fase 2: Servo GPIO 2 ---"
-    echo "GPIO 2: 0 graus -> 90 graus"
-    move_smooth 2 0
-    sleep 1
-    move_smooth 5 90
-    sleep 1
-    
-    echo "GPIO 2: 90 graus -> 180 graus"
-    move_smooth 5 180
-    sleep 1
-    
-    echo "GPIO 2: 180 graus -> 150 graus"
-    move_smooth 8 150
-    sleep 1
-    
-    echo "--- Fase 3: Servo GPIO 8 ---"
-    echo "GPIO 8: 90 graus -> 180 graus"
-    move_smooth 8 90
-    sleep 1
-    move_smooth 5 180
-    sleep 1
-    
-    echo "GPIO 8: 180 graus -> 90 graus"
-    move_smooth 2 90
-    sleep 1
-    
-    echo "GPIO 8: 90 graus -> 0 graus"
-    move_smooth 0 0
-    sleep 1
-    
-    echo "=== DEMO CONCLUÍDO ==="
-}
-
-# Controle interativo
-interactive_control() {
-    echo "=== Controle Interativo ==="
-    echo "Comandos disponíveis:"
-    echo "  <pino> <angulo>  - Move servo (ex: 0 90)"
-    echo "  demo            - Executa modo demo"
-    echo "  center          - Centraliza todos os servos"
-    echo "  q               - Sair"
-    echo ""
-    
+##################### INTERATIVO ###############################
+interactive() {
+    echo "Comandos: ang | speed | raw | direct | record | play | save | load | demo | center | q"
     while true; do
-        printf "Comando: "
-        read input
-        
-        case $input in
-            q|quit|exit)
-                break
-                ;;
-            demo)
-                demo_mode
-                ;;
-            center)
-                echo "Centralizando todos os servos..."
-                for pin in $SERVO_PINS; do
-                    move_smooth $pin 90
-                done
-                ;;
-            '')
-                echo "Digite um comando!"
-                ;;
-            *)
-                # Verifica se é comando pino ângulo
-                set -- $input
-                if [ $# -eq 2 ]; then
-                    pin=$1
-                    angle=$2
-                    
-                    # Verifica se pino é válido
-                    valid_pin=0
-                    for valid in $SERVO_PINS; do
-                        if [ "$pin" = "$valid" ]; then
-                            valid_pin=1
-                            break
-                        fi
-                    done
-                    
-                    if [ $valid_pin -eq 0 ]; then
-                        echo "Erro: Pino deve ser um de: $SERVO_PINS"
-                        continue
-                    fi
-                    
-                    # Verifica se ângulo é número válido
-                    if echo "$angle" | grep -q '^[0-9]\+'
-
-# Trap para cleanup
-trap cleanup INT TERM
-
-# Verifica se gpio está disponível
-if ! command -v gpio > /dev/null 2>&1; then
-    echo "Erro: comando 'gpio' não encontrado!"
-    echo "Instale o WiringOP: sudo apt install wiringpi-orangepi"
-    exit 1
-fi
-
-# Menu principal
-case "$1" in
-    demo)
-        init_servo
-        demo_mode
-        ;;
-    interactive|i|"")
-        init_servo
-        interactive_control
-        ;;
-    direct)
-        if [ $# -lt 3 ]; then
-            echo "Erro: Uso correto: $0 direct <pino> <angulo>"
-            echo "Exemplo: $0 direct 2 90"
-            exit 1
-        fi
-        init_servo
-        move_direct $2 $3
-        ;;
-    smooth)
-        if [ $# -lt 3 ]; then
-            echo "Erro: Uso correto: $0 smooth <pino> <ângulo>"
-            echo "Exemplo: $0 smooth 2 90"
-            exit 1
-        fi
-        init_servo
-        move_smooth $2 $3
-        ;;
-    *)
-        echo "Uso: $0 [demo|interactive|direct <pino> <angulo>|smooth <pino> <angulo>]"
-        echo ""
-        echo "  demo                    - Executa sequência de demonstração"
-        echo "  interactive            - Controle interativo (padrão)"
-        echo "  direct <pino> <angulo> - Move diretamente servo para angulo"
-        echo "  smooth <pino> <angulo> - Move suavemente servo para angulo"
-        echo ""
-        echo "Pinos disponíveis: $SERVO_PINS"
-        echo ""
-        echo "Exemplos:"
-        echo "  sudo bash $0                # Modo interativo"
-        echo "  sudo bash $0 demo           # Executa modo demo"
-        echo "  sudo bash $0 smooth 2 90    # Move servo pino 2 para 90 graus"
-        echo "  sudo bash $0 direct 0 180   # Move servo pino 0 para 180 graus"
-        exit 1
-        ;;
-esac
-
-cleanup; then
-                        if [ "$angle" -ge 0 ] && [ "$angle" -le 180 ]; then
-                            move_smooth $pin $angle
-                        else
-                            echo "Erro: Angulo deve ser entre 0 e 180"
-                        fi
-                    else
-                        echo "Erro: Angulo deve ser um numero"
-                    fi
-                else
-                    echo "Formato: <pino> <angulo> ou 'demo' ou 'center' ou 'q'"
-                    echo "Exemplo: 2 90"
-                fi
-                ;;
+        read -r -p "> " cmd a b
+        case $cmd in
+            q|quit|exit) break ;;
+            demo) demo ;;
+            center) center_all ;;
+            record)
+                echo "(gravando, stoprec para parar)"
+                recording=()
+                while read -r -p "(rec) " line; do
+                    [[ $line == stoprec ]] && break
+                    recording+=( "$line" )
+                    run_cmd $line
+                done ;;
+            play) printf '%s\n' "${recording[@]}" | run_batch ;;
+            save) printf '%s\n' "${recording[@]}" > "${a:-macro.txt}" ;;
+            load) mapfile -t recording < "$a" 2>/dev/null || echo "não achei $a" ;;
+            *) run_cmd "$cmd" "$a" "$b" ;;
         esac
     done
 }
 
-# Trap para cleanup
-trap cleanup INT TERM
+######################## MAIN ##################################
+command -v gpio >/dev/null || { echo "'gpio' não encontrado!"; exit 1; }
 
-# Verifica se gpio está disponível
-if ! command -v gpio > /dev/null 2>&1; then
-    echo "Erro: comando 'gpio' não encontrado!"
-    echo "Instale o WiringOP: sudo apt install wiringpi-orangepi"
-    exit 1
-fi
-
-# Menu principal
-case "$1" in
-    test)
-        init_servo
-        test_movement
-        ;;
-    interactive|i|"")
-        init_servo
-        interactive_control
-        ;;
-    direct)
-        init_servo
-        move_direct ${2:-90}
-        ;;
-    smooth)
-        init_servo
-        move_smooth ${2:-90}
-        ;;
+case $1 in
+    demo)      init_servo; demo ;;
+    smooth)    init_servo; move_smooth "$2" "$3" ;;
+    direct)    init_servo; move_direct "$2" "$3" ;;
+    speed)     init_servo; move_speed  "$2" "$3" ;;
+    batch)     init_servo; run_batch  "$2" ;;
+    interactive|i|'') init_servo; interactive ;;
     *)
-        echo "Uso: $0 [test|interactive|direct <ângulo>|smooth <ângulo>]"
-        echo ""
-        echo "  test        - Executa sequência de teste suave"
-        echo "  interactive - Controle interativo (padrão)"
-        echo "  direct <n>  - Move diretamente para ângulo n"
-        echo "  smooth <n>  - Move suavemente para ângulo n"
-        echo ""
-        echo "Exemplos:"
-        echo "  sudo bash $0              # Modo interativo"
-        echo "  sudo bash $0 smooth 90    # Move suave para 90°"
-        echo "  sudo bash $0 test         # Executa teste"
-        exit 1
-        ;;
+        echo "Uso: $0 [interactive|demo|smooth p a|direct p a|speed p v|batch arq]"
+        exit 1 ;;
 esac
-
-cleanup
+cleanup() { :; }
