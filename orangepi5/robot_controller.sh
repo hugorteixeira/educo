@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configurações
-SERVO_PINS="2 8 10 16"  # Pinos dos servos
+SERVO_PINS="0 2 5 8"  # Pinos dos servos
 MIN_PULSE=100
 MAX_PULSE=200
 PULSE_RANGE=$((MAX_PULSE - MIN_PULSE))
@@ -11,10 +11,10 @@ SMOOTH_STEPS=20
 STEP_DELAY=0.02
 
 # Posições atuais dos servos (variáveis simples)
+current_pulse_0=150
 current_pulse_2=150
+current_pulse_5=150
 current_pulse_8=150
-current_pulse_10=150
-current_pulse_16=150
 
 init_servo() {
     echo "Inicializando servos..."
@@ -31,10 +31,10 @@ init_servo() {
         
         # Atualiza variável de posição correspondente
         case $pin in
+            0) current_pulse_0=$center_pulse ;;
             2) current_pulse_2=$center_pulse ;;
+            5) current_pulse_5=$center_pulse ;;
             8) current_pulse_8=$center_pulse ;;
-           10) current_pulse_10=$center_pulse ;;
-           16) current_pulse_16=$center_pulse ;;
         esac
         
         echo "Servo no pino $pin inicializado na posição central"
@@ -58,10 +58,10 @@ move_smooth() {
     
     # Pega posição atual do servo correspondente
     case $servo_pin in
+        0) current_pulse=$current_pulse_0 ;;
         2) current_pulse=$current_pulse_2 ;;
+        5) current_pulse=$current_pulse_5 ;;
         8) current_pulse=$current_pulse_8 ;;
-        10) current_pulse=$current_pulse_10 ;;
-        16) current_pulse=$current_pulse_16 ;;
         *) echo "Erro: Pino $servo_pin não configurado"; return 1 ;;
     esac
     
@@ -75,10 +75,10 @@ move_smooth() {
         gpio pwm $servo_pin $target_pulse
         # Atualiza posição atual
         case $servo_pin in
+            0) current_pulse_0=$target_pulse ;;
             2) current_pulse_2=$target_pulse ;;
+            5) current_pulse_5=$target_pulse ;;
             8) current_pulse_8=$target_pulse ;;
-            10) current_pulse_10=$target_pulse ;;
-            16) current_pulse_16=$target_pulse ;;
         esac
         return 0
     fi
@@ -99,10 +99,10 @@ move_smooth() {
     
     # Atualiza posição atual correspondente
     case $servo_pin in
+        0) current_pulse_0=$target_pulse ;;
         2) current_pulse_2=$target_pulse ;;
+        5) current_pulse_5=$target_pulse ;;
         8) current_pulse_8=$target_pulse ;;
-        10) current_pulse_10=$target_pulse ;;
-        16) current_pulse_16=$target_pulse ;;
     esac
     
     echo "Movimento completo para servo pino $servo_pin"
@@ -118,10 +118,10 @@ move_direct() {
     
     # Atualiza posição atual
     case $servo_pin in
+        0) current_pulse_0=$pulse ;;
         2) current_pulse_2=$pulse ;;
+        5) current_pulse_5=$pulse ;;
         8) current_pulse_8=$pulse ;;
-        10) current_pulse_10=$pulse ;;
-        16) current_pulse_16=$pulse ;;
     esac
     
     echo "Movimento direto servo pino $servo_pin para ${angle} graus"
@@ -143,43 +143,43 @@ demo_mode() {
     
     echo "--- Fase 1: Servo GPIO 0 ---"
     echo "GPIO 2: 90 graus -> 180 graus"
-    move_smooth 2 90
+    move_smooth 0 90
     sleep 1
-    move_smooth 2 180
+    move_smooth 0 180
     sleep 1
     
     echo "GPIO 8: 180 graus -> 90 graus"
-    move_smooth 8 90
+    move_smooth 2 90
     sleep 1
     
     echo "--- Fase 2: Servo GPIO 2 ---"
     echo "GPIO 2: 0 graus -> 90 graus"
     move_smooth 2 0
     sleep 1
-    move_smooth 10 90
+    move_smooth 5 90
     sleep 1
     
     echo "GPIO 2: 90 graus -> 180 graus"
-    move_smooth 9 180
+    move_smooth 5 180
     sleep 1
     
     echo "GPIO 2: 180 graus -> 150 graus"
-    move_smooth 10 150
+    move_smooth 8 150
     sleep 1
     
     echo "--- Fase 3: Servo GPIO 8 ---"
     echo "GPIO 8: 90 graus -> 180 graus"
     move_smooth 8 90
     sleep 1
-    move_smooth 16 180
+    move_smooth 5 180
     sleep 1
     
     echo "GPIO 8: 180 graus -> 90 graus"
-    move_smooth 16 90
+    move_smooth 2 90
     sleep 1
     
     echo "GPIO 8: 90 graus -> 0 graus"
-    move_smooth 8 0
+    move_smooth 0 0
     sleep 1
     
     echo "=== DEMO CONCLUÍDO ==="
