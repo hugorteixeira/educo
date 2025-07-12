@@ -11,10 +11,11 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 
 ![Demo](thumb.png)
 
-## 🔧 Parts List ($35 total - AliExpress)
+## 🔧 Parts List ($42 total - AliExpress)
 - Generic Arm: ~$16
+- ESP32 Cam MB: ~$8
 - 4x SG90 Servos: ~$4
-- Arduino/ESP32: ~$4
+- Arduino Nano: ~$4
 - 4x Potentiometers: ~$4
 - Micro USB PSU/DIP Adapter: ~$3 
 - Protoboard: <$2
@@ -22,9 +23,10 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 
 ## 🚧 Development Status
 - ✅ Basic Arduino movement
-- 🔄 Orange Pi PWM optimization
+- ✅ Orange Pi PWM optimization
+- ✅ Camera Integration (ESP32 Cam)
 - 🔄 Phosphobot integration
-- 📋 Camera + AI vision (planned)
+- 📋 AI Vision (planned)
 - 📋 Voice interaction (planned)
 - 📋 Web remote control (planned)
 

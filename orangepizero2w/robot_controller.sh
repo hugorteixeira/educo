@@ -12,8 +12,8 @@ SERVO_MAP="2:pos 9:pos 21:pos 22:pos"
 
 MIN_PULSE=50          # 0,50 ms
 MAX_PULSE=250         # 2,50 ms
-ANGLE_MIN=-180
-ANGLE_MAX=+180
+ANGLE_MIN=-270
+ANGLE_MAX=+270
 ANGLE_OFFSET=90
 
 declare -A STOP_PULSE_CR GAIN_CR
@@ -148,17 +148,18 @@ demo() {
         # ---------- exemplo ----------
         "2 45"          # pino 5 → −30°
 	"2 0"
-	"2 45"
-        "9 45"
-	"9 0"
-	"9 -45"
-	"9 0"
+	"2 -80"
+	"2 0"
 	"9 45"
-        "21 90"
-	"22 45"
-	"22 -45"
+	"2 45"
+	"9 0"
+	"21 45"
 	"22 0"
-	"22 -45"
+	"9 45"
+	"21 -45"
+	"21 45"
+	"22 90"
+	"22 0"
 	"center"
         # ---------- fim do exemplo ---
     )
