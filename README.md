@@ -24,7 +24,9 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 ## 🚧 Development Status
 - ✅ Basic Arduino movement
 - ✅ Orange Pi PWM optimization
-- ✅ Camera Integration (ESP32 Cam)
+- ✅ Orange Pi custom demo integration
+- ✅ Camera integration (ESP32 Cam)
+- 🔄 REST API for local robot control
 - 🔄 Phosphobot integration
 - 📋 AI Vision (planned)
 - 📋 Voice interaction (planned)

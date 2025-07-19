@@ -6,27 +6,21 @@
 #   – demo, batch, record/play, raw, etc.
 #   – configurando PWM por PINO  (sem “Usage: gpio …”)
 # ============================================================
-
 ######################### CONFIGURAÇÃO ########################
 SERVO_MAP="2:pos 9:pos 21:pos 22:pos"
-
 MIN_PULSE=50          # 0,50 ms
 MAX_PULSE=250         # 2,50 ms
 ANGLE_MIN=-270
 ANGLE_MAX=+270
 ANGLE_OFFSET=90
-
 declare -A STOP_PULSE_CR GAIN_CR
 STOP_PULSE_CR[2]=140
 GAIN_CR[2]=2
-
 PWM_FREQ=192          # clock divisor
 PWM_RANGE=2000        # 1 unid = 10 µs
-
 SMOOTH_STEPS=20
 STEP_DELAY=0.02
 ################################################################
-
 PULSE_RANGE=$((MAX_PULSE - MIN_PULSE))
 
 # ---- arrays de pinos e tipos ----
@@ -40,9 +34,7 @@ SERVO_PINS="${PINS[*]}"
 
 declare -A cur           # último pulso
 declare -a recording     # buffer para record/play
-
 ##################### FUNÇÕES BÁSICAS ##########################
-
 pwm_write() {                     # pwm_write <pin> <valor>
     local p=$1 v=$2
     (( v < 0 )) && v=0
@@ -50,7 +42,6 @@ pwm_write() {                     # pwm_write <pin> <valor>
     gpio pwm "$p" "$v"
     cur[$p]=$v
 }
-
 config_pwm_pin() {
     local p=$1
     gpio mode "$p" pwm 2>/dev/null || true  # ignora erro
@@ -58,17 +49,13 @@ config_pwm_pin() {
     gpio pwmc  "$p" "$PWM_FREQ"
     gpio pwmr  "$p" "$PWM_RANGE"
 }
-
 init_servo() {
     echo "Inicializando…"
-
     # pulso de repouso para cada tipo
     local centre=$((MIN_PULSE + PULSE_RANGE/2))
-
     for p in $SERVO_PINS; do
         # 1) coloca em PWM e já configura clock e range
         config_pwm_pin "$p"
-
         # 2) valor inicial = repouso (NÃO zero!)
         if [[ ${type[$p]} == pos ]]; then
             pwm_write "$p" "$centre"           # 1,5 ms
@@ -76,13 +63,10 @@ init_servo() {
             pwm_write "$p" "${STOP_PULSE_CR[$p]:-150}"
         fi
     done
-
-    # 3) espera 25 ms (um período) para que o 1º pulso “bom” seja emitido
+    # 3) espera 25 ms para que o 1º pulso “bom” seja emitido
     sleep 0.025
-
     echo "Servos prontos."
 }
-
 ##################### POSICIONAIS ##############################
 move_smooth() {          # <pin> <angulo>
     local p=$1 ang=$2
@@ -98,14 +82,12 @@ move_smooth() {          # <pin> <angulo>
     done
     pwm_write "$p" "$tgt"
 }
-
 move_direct() {          # <pin> <angulo>
     local p=$1 ang=$2
     local pulse=$(( MIN_PULSE + PULSE_RANGE * (ang+ANGLE_OFFSET) / 180 ))
     pwm_write "$p" "$pulse"
     echo "Direto: $p ← $ang° (pulso $pulse)"
 }
-
 ####################### CONTÍNUOS ##############################
 move_speed() {           # <pin> <vel -100..100>
     local p=$1 vel=$2
@@ -114,11 +96,9 @@ move_speed() {           # <pin> <vel -100..100>
     local pulse=$(( STOP_PULSE_CR[$p] + vel * GAIN_CR[$p] ))
     pwm_write "$p" "$pulse"
 }
-
 ####################### UTILITÁRIOS ############################
 send_raw()   { pwm_write "$1" "$2"; echo "RAW $1 ← $2"; }
 center_all() { for p in $SERVO_PINS; do [[ ${type[$p]} == pos ]] && move_smooth "$p" 0 || move_speed "$p" 0; done; }
-
 run_cmd() {                # executa 1 linha de batch
     local cmd=$1; shift
     case $cmd in
@@ -135,40 +115,78 @@ run_cmd() {                # executa 1 linha de batch
             ;;
     esac
 }
-
 run_batch() {               # <arquivo> | stdin
     while IFS= read -r line; do
         run_cmd $line
     done < "${1:-/dev/stdin}"
 }
-
-######################## DEMO ##################################
+######################## DEMO PADRÃO ###########################
 demo() {
     local -a sequence=(
         # ---------- exemplo ----------
-        "2 45"          # pino 5 → −30°
-	"2 0"
-	"2 -80"
-	"2 0"
-	"9 45"
-	"2 45"
-	"9 0"
-	"21 45"
-	"22 0"
-	"9 45"
-	"21 -45"
-	"21 45"
-	"22 90"
-	"22 0"
-	"center"
+        "2 45"
+        "2 0"
+        "2 -80"
+        "2 0"
+        "9 45"
+        "2 45"
+        "9 0"
+        "21 45"
+        "22 0"
+        "9 45"
+        "21 -45"
+        "21 45"
+        "22 90"
+        "22 0"
+        "center"
         # ---------- fim do exemplo ---
     )
-
-    echo "=== DEMO PERSONALIZADA ==="
+    echo "=== DEMO PADRÃO ==="
     for line in "${sequence[@]}"; do
         run_cmd $line
     done
-    echo "=== FIM DEMO ==="
+    echo "=== FIM DEMO PADRÃO ==="
+}
+####################### DEMO EXTERNO ###########################
+run_demo_file() {          # run_demo_file <arquivo>
+    local file=$1
+    [[ -r $file ]] || { echo "Arquivo '$file' não encontrado."; return 1; }
+
+    # --- cabeçalho com limites --------------------------------
+    local -A lo hi      # arrays **locais** – nada global aqui!
+    local header_done=false line
+    echo "===CUSTOM DEMO==="
+    while IFS= read -r line; do
+        # Ignora linhas vazias/comentários no início
+        [[ $line =~ ^[[:space:]]*$ || $line =~ ^\# ]] && continue
+
+        if ! $header_done; then
+            if [[ $line =~ ^[0-9]+:-?[0-9]+:-?[0-9]+$ ]]; then
+                IFS=: read -r p min max <<< "$line"
+                lo[$p]=$min; hi[$p]=$max
+                continue
+            fi
+            # 1ª linha que não tem formato pin:min:max encerra cabeçalho
+            header_done=true
+        fi
+
+        # -----------------------------------------------------------------
+        # A partir daqui temos linhas de comando iguais às de "demo" normal
+        # -----------------------------------------------------------------
+        [[ $line =~ ^[[:space:]]*$ || $line =~ ^\# ]] && continue
+        set -- $line
+        local cmd=$1 val=$2
+
+        if [[ -n ${type[$cmd]} && ${type[$cmd]} == pos ]]; then
+            # pin posicional: aplica clamp se houver limites
+            [[ -n ${lo[$cmd]} && $val -lt ${lo[$cmd]} ]] && val=${lo[$cmd]}
+            [[ -n ${hi[$cmd]} && $val -gt ${hi[$cmd]} ]] && val=${hi[$cmd]}
+            run_cmd "$cmd" "$val"
+        else
+            # não é pino posicional → executa normalmente
+            run_cmd $line
+        fi
+    done < "$file"
 }
 ##################### INTERATIVO ###############################
 interactive() {
@@ -194,19 +212,34 @@ interactive() {
         esac
     done
 }
-
 ######################## MAIN ##################################
 command -v gpio >/dev/null || { echo "'gpio' não encontrado!"; exit 1; }
 
 case $1 in
-    demo)      init_servo; demo ;;
-    smooth)    init_servo; move_smooth "$2" "$3" ;;
-    direct)    init_servo; move_direct "$2" "$3" ;;
-    speed)     init_servo; move_speed  "$2" "$3" ;;
-    batch)     init_servo; run_batch  "$2" ;;
+    --demo)
+        init_servo
+        if ! run_demo_file "$2"; then
+            echo "Caindo para DEMO padrão…"
+            demo
+        fi
+        ;;
+    demo)       init_servo; demo ;;
+    smooth)     init_servo; move_smooth "$2" "$3" ;;
+    direct)     init_servo; move_direct "$2" "$3" ;;
+    speed)      init_servo; move_speed  "$2" "$3" ;;
+    batch)      init_servo; run_batch  "$2" ;;
     interactive|i|'') init_servo; interactive ;;
     *)
-        echo "Uso: $0 [interactive|demo|smooth p a|direct p a|speed p v|batch arq]"
+        echo "Uso:"
+        echo "  $0                           # modo interativo"
+        echo "  $0 --demo arquivo.txt        # executa demo externo"
+        echo "  $0 demo                      # demo embutido"
+        echo "  $0 smooth  PIN ÂNG           # movimento suavizado"
+        echo "  $0 direct  PIN ÂNG           # movimento instantâneo"
+        echo "  $0 speed   PIN VEL           # servo contínuo"
+        echo "  $0 batch   arquivo.txt       # executa batch"
         exit 1 ;;
 esac
+
 cleanup() { :; }
+

@@ -49,4 +49,6 @@ gpio mode 8 pwm
  | GPIO | wPi |   Name   |  Mode  | V | Physical | V |  Mode  | Name     | wPi | GPIO |
  +------+-----+----------+--------+---+   OPI5   +---+--------+----------+-----+------+
 
-7 - Run ./robot_controller.sh, type demo, hit Enter.
+7 - Do sudo chmod +x robot_controller.sh
+
+8 - Run ./robot_controller.sh --demo orangepi5/demo_opi5.txt

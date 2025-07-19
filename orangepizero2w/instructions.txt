@@ -54,3 +54,9 @@ gpio mode 22 pwm
  +------+-----+----------+--------+---+----++----+---+--------+----------+-----+------+
  | GPIO | wPi |   Name   |  Mode  | V | Physical | V |  Mode  | Name     | wPi | GPIO |
  +------+-----+----------+--------+---+  ZERO2W  +---+--------+----------+-----+------+
+
+7 - Do sudo chmod +x robot_controller.sh
+
+8 - Run ./robot_controller.sh --demo orangepizero2w/demo_opiz2w.txt
+
+

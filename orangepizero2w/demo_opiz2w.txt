@@ -1,0 +1,25 @@
+# educo - OrangePi Zero 2w Demo
+
+# pin config - pin_number:min:max
+2:-80:45
+9:0:45
+21:-45:45
+22:0:90
+
+# demo
+2 45
+2 0
+2 -80
+2 0
+9 45
+2 45
+9 0
+21 45
+22 0
+9 45
+21 -45
+21 45
+22 90
+22 0
+center
+
