@@ -26,11 +26,13 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 - ✅ Orange Pi PWM optimization
 - ✅ Orange Pi custom demo integration
 - ✅ Camera integration (ESP32 Cam)
-- 🔄 REST API for local robot control
+- ✅ REST API for local robot control
+- ✅ LLM servos web control with Open-WebUI/Ollama
 - 🔄 Phosphobot integration
-- 📋 AI Vision (planned)
+- 🔄 AI Vision (it can move, but it can't see yet)
 - 📋 Voice interaction (planned)
-- 📋 Web remote control (planned)
+- 📋 Open web remote control with SSL (planned)
+- 📋 HuggingFace Spaces Setup (planned)
 
 ## 💡 Credits (pending)
 
