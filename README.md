@@ -28,10 +28,11 @@ Basic movement via Arduino + potentiometer. See the [video demo.](https://github
 - ✅ Camera integration (ESP32 Cam)
 - ✅ REST API for local robot control
 - ✅ LLM servos web control with Open-WebUI/Ollama
+- ✅ AI Vision (it can see and move, but badly)
+- 🔄 Fine tuning of a VLA model is necessary
+- 🔄 Open web remote control with SSL (planned)
 - 🔄 Phosphobot integration
-- 🔄 AI Vision (it can move, but it can't see yet)
 - 📋 Voice interaction (planned)
-- 📋 Open web remote control with SSL (planned)
 - 📋 HuggingFace Spaces Setup (planned)
 
 ## 💡 Credits (pending)
