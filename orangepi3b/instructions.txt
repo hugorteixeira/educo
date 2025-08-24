@@ -1,4 +1,4 @@
-Orange Pi Zero 2W Instructions
+Orange Pi Zero 3B Instructions
 
 1 - Update and install basics.
 
@@ -57,6 +57,8 @@ gpio mode 22 pwm
 
 7 - Do sudo chmod +x robot_controller.sh
 
-8 - Run ./robot_controller.sh --demo orangepizero2w/demo_opiz2w.txt
+8 - Install python requirements with pip install -r requirements.txt
+
+9 - Run ./robot_controller.sh --demo orangepizero2w/demo_opiz2w.txt
 
 

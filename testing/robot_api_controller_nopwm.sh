@@ -28,10 +28,10 @@ import atexit
 #   - "hw": PWM de hardware via comando `gpio` (como no Zero 2W)
 # Ajuste ranges e parts como quiser.
 SERVO_MAP: Dict[int, Dict[str, Any]] = {
-    2:  {"type": "pos", "range": "-80:45",  "part": "claw",   "driver": "soft"},
-    9:  {"type": "pos", "range": "-10:110", "part": "reach",  "driver": "soft"},
-    21: {"type": "pos", "range": "-100:120","part": "base",   "driver": "soft"},
-    22: {"type": "pos", "range": "0:100",   "part": "height", "driver": "soft"},
+    31:  {"type": "pos", "range": "-80:45",  "part": "claw",   "driver": "soft"},
+    33:  {"type": "pos", "range": "-10:110", "part": "reach",  "driver": "soft"},
+    35: {"type": "pos", "range": "-100:120","part": "base",   "driver": "soft"},
+    37: {"type": "pos", "range": "0:100",   "part": "height", "driver": "soft"},
 }
 # Se quiser misturar: troque "driver": "hw" nos pinos com PWM de hardware.
 
@@ -39,15 +39,15 @@ SERVO_MAP: Dict[int, Dict[str, Any]] = {
 # Preencha com base no `gpioinfo` do seu Orange Pi 3B.
 # Exemplo (fictício): 2: ("gpiochip0", 12) -> pin lógico 2 usa line 12 no chip gpiochip0
 SOFT_GPIOD_MAP: Dict[int, Tuple[str, int]] = {
-    # 2:  ("gpiochip0", 12),
-    # 9:  ("gpiochip0", 13),
-    # 21: ("gpiochip0", 14),
-    # 22: ("gpiochip0", 15),
+    31:  ("gpiochip0", 28),
+    33:  ("gpiochip0", 31),
+    35:  ("gpiochip0", 24),
+    37:  ("gpiochip0", 27),
 }
 
 # Backend preferido para PWM por software: "gpiod" (recomendado) ou "gpio_cli" (fallback)
 SOFT_PWM_BACKEND = "gpiod"  # "gpiod" ou "gpio_cli"
-
+GPIO_CLI_ADDRESING = "physical"
 # Janela de pulsos (mantém compatibilidade com seu mapeamento anterior):
 # MIN_PULSE..MAX_PULSE são valores em "unidades" onde 2000 unidades = 20 ms => 1 unidade = 10 us
 MIN_PULSE = 50    # 0.5 ms
@@ -215,45 +215,22 @@ class GpioCliPin(SoftPinBase):
         except:
             pass
 
-class GpiodPin(SoftPinBase):
-    def __init__(self, chip_name: str, line_offset: int):
-        # gpiod v1 é o alvo; se v2 estiver instalado, o import pode diferir.
-        try:
-            import gpiod  # type: ignore
-        except ImportError as e:
-            raise RuntimeError("python3-libgpiod não encontrado. Instale com: sudo apt-get install python3-libgpiod") from e
-
-        self._gpiod = gpiod
-        self._chip_name = chip_name
-        self._line_offset = line_offset
-        self._chip = gpiod.Chip(chip_name)
-        self._line = self._chip.get_line(line_offset)
-        self._line.request(consumer="soft-servo", type=gpiod.LINE_REQ_DIR_OUT, default_vals=[0])
+class GpioCliPin(SoftPinBase):
+    def __init__(self, pin_logical: int):
+        self.pin = pin_logical
+        self._prefix = "-1 " if GPIO_CLI_ADDRESSING == "physical" else ""
+        run_gpio_command(f"gpio {self._prefix}mode {self.pin} out")
         self._last = 0
 
     def set_high(self):
         if self._last != 1:
-            self._line.set_value(1)
+            run_gpio_command(f"gpio {self._prefix}write {self.pin} 1")
             self._last = 1
 
     def set_low(self):
         if self._last != 0:
-            self._line.set_value(0)
+            run_gpio_command(f"gpio {self._prefix}write {self.pin} 0")
             self._last = 0
-
-    def close(self):
-        try:
-            self._line.set_value(0)
-        except:
-            pass
-        try:
-            self._line.release()
-        except:
-            pass
-        try:
-            self._chip.close()
-        except:
-            pass
 
 class SoftPWMManager:
     """
@@ -536,10 +513,10 @@ async def center_servos():
 async def run_demo():
     ensure_initialized()
     demo_sequence = [
-        "2 45", "2 0", "2 -80", "2 0",
-        "9 45", "2 45", "9 0",
-        "21 45", "22 0", "9 45",
-        "21 -45", "21 45", "22 90", "22 0"
+        "31 45", "31 0", "31 -80", "31 0",
+        "33 45", "33 45", "33 0",
+        "35 45", "35 0", "35 45",
+        "35 -45", "35 45", "35 90", "35 0"
     ]
     for cmd_line in demo_sequence:
         parts = cmd_line.split()
