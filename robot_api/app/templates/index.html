@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='ui.css') }}" />
+</head>
+<body>
+    <div id="toast" class="toast" hidden></div>
+    <div id="app" class="layout">
+        <header class="card header">
+            <div class="header-main">
+                <h1 class="title">Robot Control Dashboard</h1>
+                <span class="badge badge-live">Live</span>
+            </div>
+            <div class="header-actions">
+                <label class="toggle" title="Log moves with snapshots for dataset capture">
+                    <input type="checkbox" id="logging-toggle" />
+                    <span class="slider"></span>
+                    <span class="toggle-label">Log moves</span>
+                </label>
+                <span class="logging-count" id="logging-count"></span>
+            </div>
+            <p class="subtitle">Stream + servo status auto-refresh. Keyboard or onscreen controls with step-based moves.</p>
+        </header>
+
+        <section class="grid">
+            <div class="card camera">
+                <div class="card-header">
+                    <h2>Camera Stream</h2>
+                    <span class="badge badge-ghost">Vision</span>
+                </div>
+                <div class="camera-frame">
+                    <img id="camera-stream" alt="Live stream" src="/camera/stream" />
+                </div>
+                <div class="camera-actions">
+                    <button id="refresh-frame" class="btn ghost">Snapshot</button>
+                    <a id="raw-stream" class="link" target="_blank" rel="noopener">Raw Stream</a>
+                </div>
+            </div>
+
+            <div class="card controls">
+                <div class="card-header">
+                    <h2>Controls</h2>
+                    <span class="badge badge-ghost">Keyboard & Touch</span>
+                </div>
+                <div class="map" id="part-map"></div>
+                <div class="control-panels">
+                    <div class="pad" data-group="arrows">
+                        <button class="pad-btn" data-key="ArrowUp">↑</button>
+                        <div class="pad-middle">
+                            <button class="pad-btn" data-key="ArrowLeft">←</button>
+                            <button class="pad-btn" data-key="ArrowDown">↓</button>
+                            <button class="pad-btn" data-key="ArrowRight">→</button>
+                        </div>
+                    </div>
+                    <div class="pad" data-group="wasd">
+                        <button class="pad-btn" data-key="KeyW">W</button>
+                        <div class="pad-middle">
+                            <button class="pad-btn" data-key="KeyA">A</button>
+                            <button class="pad-btn" data-key="KeyS">S</button>
+                            <button class="pad-btn" data-key="KeyD">D</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="center-servos" class="btn">Center</button>
+                    <button id="run-demo" class="btn outline">Demo</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="card settings">
+            <div class="card-header">
+                <h2>Configuration</h2>
+                <span class="badge badge-ghost">Live editable</span>
+            </div>
+            <form id="config-form" class="settings-form">
+                <div class="settings-grid">
+                    <fieldset class="settings-block">
+                        <legend>Camera</legend>
+                        <label class="field">
+                            <span>IP address</span>
+                            <input type="text" id="camera-ip" autocomplete="off" />
+                        </label>
+                        <div class="field-row">
+                            <label class="field">
+                                <span>Capture port</span>
+                                <input type="number" id="camera-capture" min="1" max="65535" />
+                            </label>
+                            <label class="field">
+                                <span>Stream port</span>
+                                <input type="number" id="camera-stream" min="1" max="65535" />
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="settings-block">
+                        <legend>Step sizes</legend>
+                        <label class="field">
+                            <span>Default step (0-1)</span>
+                            <input type="number" step="0.01" min="0.01" max="1" id="step-default" />
+                        </label>
+                        <div id="step-parts" class="field-column"></div>
+                    </fieldset>
+                </div>
+
+                <fieldset class="settings-block full">
+                    <legend>Servo ranges (degrees)</legend>
+                    <table class="settings-table">
+                        <thead>
+                            <tr>
+                                <th>Part</th>
+                                <th>Pin</th>
+                                <th>Min</th>
+                                <th>Max</th>
+                            </tr>
+                        </thead>
+                        <tbody id="servo-table"></tbody>
+                    </table>
+                </fieldset>
+
+                <div class="settings-actions">
+                    <button type="submit" class="btn">Save configuration</button>
+                    <button type="button" class="btn outline" id="reload-config">Reload page</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card status">
+            <div class="card-header">
+                <h2>Status</h2>
+                <span class="badge badge-ghost">System</span>
+            </div>
+            <pre id="status-json" class="status-json">// loading...</pre>
+        </section>
+    </div>
+
+    <script>
+        window.robotUiConfig = {{ ui_config_json | safe }};
+    </script>
+    <script type="module" src="{{ url_for('static', path='ui.js') }}"></script>
+</body>
+</html>
