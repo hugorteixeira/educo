@@ -2,7 +2,7 @@
 
 Low-cost robotics for schools and NGOs—now with a full Python control stack, live camera streaming, and dataset-ready move logging.
 
-![Demo](educo_2.png)
+![Demo](thumb.png)
 
 ## 📚 Table of Contents
 - [Mission](#mission)
@@ -22,9 +22,9 @@ Build an ultra-cheap educational robotics platform controllable by SBCs (Orange 
 > 🎥 Want a quick overview? Watch the [about video](https://github.com/hugorteixeira/educo/raw/refs/heads/main/about_educo.mp4).
 
 ## 📹 Current Demo
-Basic arm movement driven by an Arduino + potentiometer pair. See it in action in the [video demo](https://github.com/hugorteixeira/educo/raw/refs/heads/main/demo_arduino.mp4).
+Python app for controlling the robot with a WASD-based API interface and logging everywhere move with a picture for ML training (testing). See it in action in the [video demo](https://github.com/hugorteixeira/educo/raw/refs/heads/main/demo_robot_api.mp4).
 
-![Demo](thumb.png)
+![Demo](educo_3.png)
 
 ## ⚡ Quick Start
 1. **Install dependencies**
