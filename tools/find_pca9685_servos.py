@@ -70,7 +70,7 @@ def main():
     center = int(os.getenv("CENTER_US", "1500"))
     delta  = int(os.getenv("DELTA_US", "200"))   # nudge amplitude
     hold   = float(os.getenv("HOLD_S", "0.4"))   # time to hold each nudge
-    pause  = float(os.getenv("PAUSE_S", "0.6"))  # pause between channels
+    pause  = float(os.getenv("PAUSE_S", "2"))  # pause between channels
 
     # Limit to a subset if you want (e.g., "0-7" or "0,1,2,3")
     only = os.getenv("CHANNELS", "").strip()

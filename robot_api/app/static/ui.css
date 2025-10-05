@@ -66,18 +66,22 @@ h1, h2, h3 {
     pointer-events: none;
 }
 
-.header-main {
+.header-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+    column-gap: 10px;
 }
 
-.header-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 16px;
-    margin-top: 12px;
+.header-row .title {
+    margin-right: auto;
+}
+
+.header-row .badge,
+.header-row .btn,
+.header-row .toggle {
+    flex-shrink: 0;
 }
 
 .logging-count {
@@ -89,16 +93,16 @@ h1, h2, h3 {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: var(--text-dim);
 }
 
 .toggle input {
     appearance: none;
-    width: 46px;
-    height: 24px;
+    width: 40px;
+    height: 20px;
     background: rgba(0, 246, 162, 0.2);
     border-radius: 999px;
     position: relative;
@@ -111,8 +115,8 @@ h1, h2, h3 {
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: #061012;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -124,7 +128,7 @@ h1, h2, h3 {
 }
 
 .toggle input:checked::after {
-    transform: translateX(22px);
+    transform: translateX(18px);
     background: #012612;
 }
 
@@ -142,6 +146,15 @@ h1, h2, h3 {
     margin: 8px 0 0 0;
     color: var(--text-dim);
     font-size: 0.95rem;
+}
+
+.header-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
 }
 
 .badge {
@@ -223,6 +236,19 @@ h1, h2, h3 {
     gap: 8px;
     margin-bottom: 16px;
     font-size: 0.9rem;
+}
+
+.control-hints {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+}
+
+.control-hints strong {
+    color: var(--text);
 }
 
 .map-pill {
@@ -334,6 +360,14 @@ h1, h2, h3 {
     transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
+.btn.small {
+    padding: 4px 10px;
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    border-radius: 10px;
+    min-width: 0;
+}
+
 .btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 34px rgba(0, 246, 162, 0.25);
@@ -364,6 +398,63 @@ h1, h2, h3 {
     font-size: 0.85rem;
     color: var(--text);
     line-height: 1.35;
+}
+
+.log-stream {
+    min-height: 200px;
+    max-height: 320px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 246, 162, 0.18);
+    background: rgba(0, 246, 162, 0.05);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.log-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0, 246, 162, 0.04);
+    border: 1px solid rgba(0, 246, 162, 0.12);
+}
+
+.log-entry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.log-entry-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+
+.log-empty, .log-error {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+
+.log-error {
+    color: var(--danger);
+}
+
+.logs-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .settings {
@@ -401,6 +492,7 @@ h1, h2, h3 {
 
 .settings-block.full {
     width: 100%;
+    overflow-x: auto;
 }
 
 .field {
@@ -440,6 +532,20 @@ h1, h2, h3 {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: fixed;
+}
+
+.settings-table th:nth-child(1) {
+    width: 36%;
+}
+
+.settings-table th:nth-child(2) {
+    width: 22%;
+}
+
+.settings-table th:nth-child(3),
+.settings-table th:nth-child(4) {
+    width: 21%;
 }
 
 .settings-table th,
@@ -447,15 +553,35 @@ h1, h2, h3 {
     padding: 8px;
     border-bottom: 1px solid rgba(0, 246, 162, 0.12);
     text-align: left;
+    vertical-align: top;
 }
 
 .settings-table input {
     width: 100%;
+    min-width: 0;
     padding: 6px 8px;
     border-radius: 8px;
     border: 1px solid rgba(0, 246, 162, 0.2);
     background: rgba(0, 246, 162, 0.08);
     color: var(--text);
+    font-size: 0.85rem;
+}
+
+.settings-table .cell-part strong {
+    display: block;
+}
+
+.settings-table .cell-part .cell-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+}
+
+.settings-table .cell-map input {
+    width: 100%;
+    text-align: center;
 }
 
 .settings-actions {
@@ -468,9 +594,8 @@ h1, h2, h3 {
     body {
         padding: 16px;
     }
-    .pad-btn {
-        width: 64px;
-        height: 64px;
+    .control-btn {
+        min-width: 100px;
     }
 }
 

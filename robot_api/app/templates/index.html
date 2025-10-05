@@ -10,22 +10,24 @@
     <div id="toast" class="toast" hidden></div>
     <div id="app" class="layout">
         <header class="card header">
-            <div class="header-main">
-                <h1 class="title">Robot Control Dashboard</h1>
+            <div class="header-row">
+                <h1 class="title">Educo Robot Control Dashboard</h1>
                 <span class="badge badge-live">Live</span>
-            </div>
-            <div class="header-actions">
+                <a id="repo-link" class="btn ghost small" href="https://github.com/hugorteixeira/educo" target="_blank" rel="noopener">GitHub Repo</a>
                 <label class="toggle" title="Log moves with snapshots for dataset capture">
                     <input type="checkbox" id="logging-toggle" />
                     <span class="slider"></span>
                     <span class="toggle-label">Log moves</span>
                 </label>
-                <span class="logging-count" id="logging-count"></span>
             </div>
-            <p class="subtitle">Stream + servo status auto-refresh. Keyboard or onscreen controls with step-based moves.</p>
+            <p class="subtitle">Low-cost robotics for schools and NGOs&mdash;now with a full Python control stack, live camera streaming, and dataset-ready move logging.</p>
+            <div class="header-meta">
+                <span class="logging-count" id="logging-count"></span>
+                <button id="config-toggle" class="btn outline small" type="button" aria-expanded="false" aria-controls="settings-card">Show configuration</button>
+            </div>
         </header>
 
-        <section class="grid">
+        <section class="grid primary-grid">
             <div class="card camera">
                 <div class="card-header">
                     <h2>Camera Stream</h2>
@@ -46,6 +48,10 @@
                     <span class="badge badge-ghost">Keyboard & Touch</span>
                 </div>
                 <div class="map" id="part-map"></div>
+                <div class="control-hints">
+                    <span><strong>Arrow keys</strong> · claw grip & arm height</span>
+                    <span><strong>WASD</strong> · base rotation & reach</span>
+                </div>
                 <div class="control-panels">
                     <div class="pad" data-group="arrows">
                         <button class="pad-btn" data-key="ArrowUp">↑</button>
@@ -71,7 +77,7 @@
             </div>
         </section>
 
-        <section class="card settings">
+        <section id="settings-card" class="card settings" hidden>
             <div class="card-header">
                 <h2>Configuration</h2>
                 <span class="badge badge-ghost">Live editable</span>
@@ -91,7 +97,7 @@
                             </label>
                             <label class="field">
                                 <span>Stream port</span>
-                                <input type="number" id="camera-stream" min="1" max="65535" />
+                                <input type="number" id="camera-stream-port" min="1" max="65535" />
                             </label>
                         </div>
                     </fieldset>
@@ -107,14 +113,14 @@
                 </div>
 
                 <fieldset class="settings-block full">
-                    <legend>Servo ranges (degrees)</legend>
+                    <legend>Servo mappings</legend>
                     <table class="settings-table">
                         <thead>
                             <tr>
                                 <th>Part</th>
-                                <th>Pin</th>
-                                <th>Min</th>
-                                <th>Max</th>
+                                <th id="servo-header-map">Mapping</th>
+                                <th id="servo-header-min">Min</th>
+                                <th id="servo-header-max">Max</th>
                             </tr>
                         </thead>
                         <tbody id="servo-table"></tbody>
@@ -123,17 +129,29 @@
 
                 <div class="settings-actions">
                     <button type="submit" class="btn">Save configuration</button>
+                    <button type="button" class="btn outline" id="test-channels">Test channels</button>
                     <button type="button" class="btn outline" id="reload-config">Reload page</button>
                 </div>
             </form>
         </section>
 
-        <section class="card status">
-            <div class="card-header">
-                <h2>Status</h2>
-                <span class="badge badge-ghost">System</span>
+        <section class="grid system-grid">
+            <div class="card status">
+                <div class="card-header">
+                    <h2>Status</h2>
+                    <span class="badge badge-ghost">System</span>
+                </div>
+                <pre id="status-json" class="status-json">// loading...</pre>
             </div>
-            <pre id="status-json" class="status-json">// loading...</pre>
+            <div class="card logs">
+                <div class="card-header">
+                    <h2>Move Logs</h2>
+                    <div class="logs-actions">
+                        <button id="logs-export" type="button" class="btn outline small">Export CSV</button>
+                    </div>
+                </div>
+                <div id="log-stream" class="log-stream"></div>
+            </div>
         </section>
     </div>
 

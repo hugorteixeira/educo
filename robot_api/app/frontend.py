@@ -22,6 +22,7 @@ def build_ui_payload(cfg: AppConfig) -> Dict[str, Any]:
         servos.append(
             {
                 "pin": servo.pin,
+                "channel": servo.channel,
                 "part": servo.part,
                 "type": servo.type,
                 "range": [servo.range[0], servo.range[1]],
@@ -34,6 +35,7 @@ def build_ui_payload(cfg: AppConfig) -> Dict[str, Any]:
         "step": {**cfg.ui.part_step_pct, "default": cfg.ui.default_step_pct},
         "servos": servos,
         "demoSmooth": cfg.demo_smooth,
+        "servoDriver": cfg.servo_driver,
         "camera": {
             "capture": f"/camera/frame",
             "stream": f"/camera/stream",
@@ -47,6 +49,10 @@ def build_ui_payload(cfg: AppConfig) -> Dict[str, Any]:
             "center": "/servo/center",
             "demo": "/servo/demo",
             "status": "/robot/status",
+            "logs": "/ui/logs",
+            "logsExport": "/ui/logs/export",
+            "config": "/ui/config",
+            "testChannels": "/servo/test-channels" if cfg.servo_driver == "pca9685" else None,
         },
         "cameraSettings": {
             "ip": cfg.camera_ip,
@@ -84,7 +90,7 @@ async def robot_ui(request: Request):
         {
             "request": request,
             "ui_config_json": json.dumps(payload),
-            "title": "Robot Control UI",
+            "title": "Educo Robot Control Dashboard",
         },
     )
 

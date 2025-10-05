@@ -1,9 +1,13 @@
 const cfg = window.robotUiConfig || {};
-let statusRefreshMs = cfg.statusRefreshMs ?? 2000;
+const driver = (cfg.servoDriver || "").toLowerCase();
+document.body.dataset.driver = driver || "soft";
+const driverIsPca = driver === "pca9685";
+const statusRefreshMs = cfg.statusRefreshMs ?? 2000;
 let keyRepeatMs = cfg.keyRepeatMs ?? 120;
 let steps = cfg.step ? { ...cfg.step } : {};
 let defaultStep = steps.default ?? 0.15;
 let loggingState = cfg.logging || { enabled: false, log_count: 0 };
+const LOG_DISPLAY_LIMIT = 20;
 
 const statusEl = document.getElementById("status-json");
 const mapEl = document.getElementById("part-map");
@@ -19,31 +23,58 @@ const configForm = document.getElementById("config-form");
 const reloadConfigBtn = document.getElementById("reload-config");
 const cameraIpInput = document.getElementById("camera-ip");
 const cameraCaptureInput = document.getElementById("camera-capture");
-const cameraStreamInput = document.getElementById("camera-stream");
+const cameraStreamInput = document.getElementById("camera-stream-port");
 const stepDefaultInput = document.getElementById("step-default");
 const stepPartsContainer = document.getElementById("step-parts");
 const servoTableBody = document.getElementById("servo-table");
+const configSection = document.getElementById("settings-card");
+const configToggleBtn = document.getElementById("config-toggle");
+const logStreamEl = document.getElementById("log-stream");
+const logExportBtn = document.getElementById("logs-export");
+const testChannelsBtn = document.getElementById("test-channels");
 
 const partState = {};
+const servoMetaByPart = new Map();
 const pinToPart = new Map();
 let statusErrorShown = false;
+let logErrorShown = false;
+let logEntries = [];
 
 (cfg.servos || []).forEach((servo) => {
-  const part = servo.part || `pin-${servo.pin}`;
-  partState[part] = {
+  const partName = servo.part || `pin-${servo.pin}`;
+  const partKey = partName.toLowerCase();
+  const min = Array.isArray(servo.range) ? servo.range[0] : -270;
+  const max = Array.isArray(servo.range) ? servo.range[1] : 270;
+  partState[partKey] = {
+    part: partName,
     pin: servo.pin,
-    part,
+    channel: servo.channel,
     type: servo.type,
-    min: Array.isArray(servo.range) ? servo.range[0] : -270,
-    max: Array.isArray(servo.range) ? servo.range[1] : 270,
+    min,
+    max,
     value: null,
   };
-  pinToPart.set(servo.pin, part);
+  servoMetaByPart.set(partKey, {
+    part: partName,
+    pin: servo.pin,
+    channel: servo.channel,
+  });
+  if (typeof servo.pin === "number") {
+    pinToPart.set(servo.pin, partKey);
+  }
 });
 
 if (rawStreamLink && cfg.camera?.raw?.stream) {
   rawStreamLink.href = cfg.camera.raw.stream;
 }
+
+renderMap();
+renderLogs();
+updateLoggingUI();
+initializeConfigForm();
+refreshLoggingState();
+refreshLogs();
+pollLoop();
 
 function toast(message, type = "info") {
   if (!toastEl) return;
@@ -68,9 +99,12 @@ function updateLoggingUI() {
     loggingToggle.checked = !!loggingState.enabled;
   }
   if (loggingCountEl) {
-    loggingCountEl.textContent = loggingState.log_count
-      ? `Logged moves: ${loggingState.log_count}`
-      : "Logs disabled";
+    if (loggingState.enabled) {
+      const count = loggingState.log_count ?? 0;
+      loggingCountEl.textContent = `Logging enabled · ${count} entries`;
+    } else {
+      loggingCountEl.textContent = "Logging disabled";
+    }
   }
 }
 
@@ -78,7 +112,7 @@ async function refreshLoggingState() {
   try {
     const data = await fetchJSON("/ui/logging");
     if (data && typeof data === "object") {
-      loggingState = data;
+      loggingState = { ...loggingState, ...data };
       updateLoggingUI();
     }
   } catch (err) {
@@ -97,6 +131,7 @@ async function setLogging(enabled) {
     loggingState = data;
     updateLoggingUI();
     toast(enabled ? "Logging enabled" : "Logging disabled");
+    await refreshLogs();
   } catch (err) {
     toast(`Logging update failed: ${err.message}`, "error");
     loggingToggle.checked = !enabled;
@@ -107,28 +142,114 @@ async function setLogging(enabled) {
 
 function renderMap() {
   if (!mapEl) return;
-  const items = (cfg.servos || []).map((servo) => {
-    const state = partState[servo.part] || {};
-    const partKey = servo.part?.toLowerCase?.() || "";
-    const stepPct = Math.round(((steps[partKey] ?? steps[servo.part] ?? defaultStep) || defaultStep) * 100);
-    const value = state.value ?? "–";
+  const items = (cfg.servos || [])
+    .map((servo) => {
+      const partName = servo.part || `pin-${servo.pin}`;
+      const partKey = partName.toLowerCase();
+      const state = partState[partKey];
+      if (!state) return "";
+      const stepPct = Math.round(((steps[partKey] ?? steps[partName] ?? defaultStep) || defaultStep) * 100);
+      const value = state.value ?? "–";
+      const signal = driverIsPca
+        ? state.channel === undefined || state.channel === null
+          ? "channel —"
+          : `channel ${state.channel}`
+        : state.pin === undefined || state.pin === null
+          ? "pin —"
+          : `pin ${state.pin}`;
+      return `
+        <div class="map-pill" data-part="${partKey}">
+          <strong>${partName.toUpperCase()}</strong>
+          <span>${signal}</span>
+          <span>${state.min}:${state.max}</span>
+          <span>val ${value}</span>
+          <span>${stepPct}% step</span>
+        </div>
+      `;
+    })
+    .filter(Boolean);
+  mapEl.innerHTML = items.join("") || '<span class="map-pill">No servos configured.</span>';
+}
+
+function renderLogs() {
+  if (!logStreamEl) return;
+  if (!logEntries.length) {
+    const message = loggingState.enabled
+      ? 'No moves logged yet. Send a move to capture history.'
+      : 'Enable logging to capture move history.';
+    logStreamEl.innerHTML = `<p class="log-empty">${message}</p>`;
+    return;
+  }
+  const items = logEntries.slice(0, LOG_DISPLAY_LIMIT).map((entry) => {
+    const partKey = (entry.part || "").toLowerCase();
+    const info = servoMetaByPart.get(partKey);
+    const signalValue = driverIsPca ? info?.channel : (info?.pin ?? entry.pin);
+    const signalLabel = driverIsPca
+      ? signalValue === undefined || signalValue === null
+        ? ""
+        : `Channel ${signalValue}`
+      : signalValue === undefined || signalValue === null
+        ? ""
+        : `Pin ${signalValue}`;
+    const smoothLabel = entry.smooth ? "Smooth" : "Direct";
+    let targetValue = entry.target_value;
+    if (typeof targetValue !== "number") {
+      if (typeof entry.target === "number") {
+        targetValue = entry.target;
+      } else if (typeof entry.value === "number") {
+        targetValue = entry.value;
+      }
+    }
+    const targetLabel = typeof targetValue === "number" ? targetValue : "–";
+    const timestamp = formatTimestamp(entry.timestamp);
+    const partLabel = entry.part
+      ? entry.part.toUpperCase()
+      : info?.part?.toUpperCase() || (entry.pin !== undefined ? `PIN ${entry.pin}` : "UNKNOWN");
+    const hasSnapshots = entry.camera?.pre_image || entry.camera?.post_image;
     return `
-      <div class="map-pill">
-        <strong>${servo.part.toUpperCase()}</strong>
-        <span>pin ${servo.pin}</span>
-        <span>${state.min}:${state.max}</span>
-        <span>val ${value}</span>
-        <span>${stepPct}% step</span>
+      <div class="log-entry">
+        <div class="log-entry-header">
+          <span>${partLabel}</span>
+          <span>${timestamp}</span>
+        </div>
+        <div class="log-entry-meta">
+          <span>Target ${targetLabel}</span>
+          ${signalLabel ? `<span>${signalLabel}</span>` : ""}
+          <span>${smoothLabel}</span>
+          ${hasSnapshots ? '<span>Snapshots ✓</span>' : ""}
+        </div>
       </div>
     `;
   });
-  mapEl.innerHTML = items.join("") || "<span class=\"map-pill\">No servos configured.</span>";
+  logStreamEl.innerHTML = items.join("");
 }
 
-renderMap();
-updateLoggingUI();
-initializeConfigForm();
-refreshLoggingState();
+async function refreshLogs() {
+  if (!cfg.api?.logs) return;
+  try {
+    const data = await fetchJSON(`${cfg.api.logs}?limit=25`, { cache: "no-store" });
+    if (Array.isArray(data?.entries)) {
+      logEntries = data.entries;
+      if (typeof data.count === "number") {
+        loggingState.log_count = data.count;
+        updateLoggingUI();
+      }
+      renderLogs();
+      if (logErrorShown) {
+        toast("Log stream restored", "info");
+        logErrorShown = false;
+      }
+    }
+  } catch (err) {
+    if (!logErrorShown) {
+      toast(`Log fetch failed: ${err.message}`, "error");
+      logErrorShown = true;
+    }
+    if (!logEntries.length && logStreamEl) {
+      logStreamEl.innerHTML = `<p class="log-error">Unable to load logs: ${err.message}</p>`;
+    }
+  }
+}
 
 async function fetchJSON(url, options) {
   const response = await fetch(url, options);
@@ -166,15 +287,23 @@ function updateStatus(payload) {
   const servos = payload?.servo_system?.servos;
   if (Array.isArray(servos)) {
     servos.forEach((servo) => {
-      const part = servo.part || pinToPart.get(servo.pin);
-      if (!partState[part]) return;
+      const partKey = servo.part ? servo.part.toLowerCase() : pinToPart.get(servo.pin);
+      if (!partKey || !partState[partKey]) return;
+      const info = partState[partKey];
+      if (typeof servo.pin === "number") {
+        info.pin = servo.pin;
+        pinToPart.set(servo.pin, partKey);
+        const meta = servoMetaByPart.get(partKey) || { part: info.part };
+        meta.pin = servo.pin;
+        servoMetaByPart.set(partKey, meta);
+      }
       const value = typeof servo.value === "number" ? Math.round(servo.value) : null;
-      partState[part].value = value;
+      info.value = value;
       if (typeof servo.range === "string" && servo.range.includes(":")) {
         const [mn, mx] = servo.range.split(":").map((v) => Number(v));
         if (!Number.isNaN(mn) && !Number.isNaN(mx)) {
-          partState[part].min = Math.min(mn, mx);
-          partState[part].max = Math.max(mn, mx);
+          info.min = Math.min(mn, mx);
+          info.max = Math.max(mn, mx);
         }
       }
     });
@@ -186,8 +315,8 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-async function moveServo(part, target) {
-  const info = partState[part];
+async function moveServo(partKey, target) {
+  const info = partState[partKey];
   if (!info) return;
   const body = {
     pin: info.pin,
@@ -202,25 +331,21 @@ async function moveServo(part, target) {
     });
     info.value = target;
     renderMap();
-    if (loggingState.enabled) {
-      refreshLoggingState();
-    }
   } catch (err) {
     toast(`Move failed: ${err.message}`, "error");
   }
 }
 
-function stepServo(part, dir) {
-  const info = partState[part];
+function stepServo(partKey, dir) {
+  const info = partState[partKey];
   if (!info) return;
   const span = (info.max ?? 90) - (info.min ?? -90);
-  const partKey = part.toLowerCase();
-  const stepPct = steps[partKey] ?? steps[part] ?? defaultStep;
+  const stepPct = steps[partKey] ?? steps[info.part] ?? defaultStep;
   const step = Math.max(1, Math.round(span * stepPct));
   const current = typeof info.value === "number" ? info.value : 0;
   const target = clamp(current + dir * step, info.min, info.max);
   if (target === current) return;
-  moveServo(part, target);
+  moveServo(partKey, target);
 }
 
 const KEY_BINDINGS = {
@@ -275,12 +400,20 @@ padButtons.forEach((btn) => {
   const key = btn.dataset.key;
   btn.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    btn.setPointerCapture(event.pointerId);
+    if (btn.setPointerCapture) {
+      btn.setPointerCapture(event.pointerId);
+    }
     setKeyActive(key, true);
   });
   btn.addEventListener("pointerup", (event) => {
     event.preventDefault();
-    btn.releasePointerCapture(event.pointerId);
+    if (btn.releasePointerCapture) {
+      try {
+        btn.releasePointerCapture(event.pointerId);
+      } catch (err) {
+        // ignore
+      }
+    }
     setKeyActive(key, false);
   });
   btn.addEventListener("pointerleave", () => setKeyActive(key, false));
@@ -330,6 +463,7 @@ async function postAction(url, button, label) {
     setTimeout(refreshStatus, 400);
     if (loggingState.enabled) {
       refreshLoggingState();
+      refreshLogs();
     }
   } catch (err) {
     toast(`${label} failed: ${err.message}`, "error");
@@ -353,6 +487,60 @@ if (reloadConfigBtn) {
   reloadConfigBtn.addEventListener("click", () => window.location.reload());
 }
 
+if (configToggleBtn && configSection) {
+  const applyToggleState = () => {
+    const isHidden = configSection.hasAttribute("hidden");
+    configToggleBtn.textContent = isHidden ? "Show configuration" : "Hide configuration";
+    configToggleBtn.setAttribute("aria-expanded", String(!isHidden));
+  };
+
+  applyToggleState();
+
+  configToggleBtn.addEventListener("click", () => {
+    if (configSection.hasAttribute("hidden")) {
+      configSection.removeAttribute("hidden");
+    } else {
+      configSection.setAttribute("hidden", "");
+    }
+    applyToggleState();
+  });
+}
+
+if (logExportBtn && cfg.api?.logsExport) {
+  logExportBtn.addEventListener("click", () => {
+    const url = `${cfg.api.logsExport}?ts=${Date.now()}`;
+    window.open(url, "_blank", "noopener");
+  });
+} else if (logExportBtn) {
+  logExportBtn.disabled = true;
+}
+
+if (testChannelsBtn) {
+  if (!driverIsPca || !cfg.api?.testChannels) {
+    testChannelsBtn.disabled = true;
+  } else {
+    const originalLabel = testChannelsBtn.textContent || "Test channels";
+    testChannelsBtn.addEventListener("click", async () => {
+      testChannelsBtn.disabled = true;
+      testChannelsBtn.textContent = "Testing...";
+      try {
+        const result = await fetchJSON(cfg.api.testChannels, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const tested = result?.tested ?? 0;
+        toast(`Tested ${tested} channel${tested === 1 ? "" : "s"}.`, "info");
+      } catch (err) {
+        toast(`Channel test failed: ${err.message}`, "error");
+      } finally {
+        testChannelsBtn.textContent = originalLabel;
+        testChannelsBtn.disabled = false;
+      }
+    });
+  }
+}
+
 if (configForm) {
   configForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -360,7 +548,7 @@ if (configForm) {
     const submitBtn = configForm.querySelector("button[type='submit']");
     if (submitBtn) submitBtn.disabled = true;
     try {
-      await fetchJSON("/ui/config", {
+      await fetchJSON(cfg.api?.config || "/ui/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -405,21 +593,41 @@ function buildConfigPayload() {
   }
 
   if (servoTableBody) {
-    const rows = servoTableBody.querySelectorAll("tr[data-pin]");
+    const rows = servoTableBody.querySelectorAll("tr");
     rows.forEach((row) => {
-      const pin = Number(row.dataset.pin);
-      const part = row.dataset.part || undefined;
+      const part = row.dataset.part;
+      if (!part) return;
       const minInput = row.querySelector("input[data-role='min']");
       const maxInput = row.querySelector("input[data-role='max']");
-      if (!minInput || !maxInput) return;
-      const minVal = Number(minInput.value);
-      const maxVal = Number(maxInput.value);
-      if (Number.isNaN(minVal) || Number.isNaN(maxVal)) return;
-      payload.servos.push({
-        pin,
-        part,
-        range: [minVal, maxVal],
-      });
+      const pinInput = row.querySelector("input[data-role='pin']");
+      const channelInput = row.querySelector("input[data-role='channel']");
+      const servoUpdate = { part };
+      if (minInput && maxInput) {
+        const minRaw = minInput.value;
+        const maxRaw = maxInput.value;
+        if (minRaw !== "" && maxRaw !== "") {
+          const minVal = Number(minRaw);
+          const maxVal = Number(maxRaw);
+          if (!Number.isNaN(minVal) && !Number.isNaN(maxVal)) {
+            servoUpdate.range = [minVal, maxVal];
+          }
+        }
+      }
+      if (pinInput && pinInput.value !== "") {
+        const val = Number(pinInput.value);
+        if (!Number.isNaN(val)) {
+          servoUpdate.pin = val;
+        }
+      }
+      if (channelInput && channelInput.value !== "") {
+        const val = Number(channelInput.value);
+        if (!Number.isNaN(val)) {
+          servoUpdate.channel = val;
+        }
+      }
+      if (servoUpdate.range || servoUpdate.pin !== undefined || servoUpdate.channel !== undefined) {
+        payload.servos.push(servoUpdate);
+      }
     });
   }
 
@@ -436,7 +644,7 @@ function initializeConfigForm() {
 
   if (stepPartsContainer) {
     stepPartsContainer.innerHTML = "";
-    const partNames = [...new Set((cfg.servos || []).map((servo) => servo.part))];
+    const partNames = [...new Set((cfg.servos || []).map((servo) => servo.part).filter(Boolean))];
     partNames.forEach((part) => {
       const partKey = part.toLowerCase();
       const value = uiSettings.part_step_pct?.[partKey] ?? uiSettings.part_step_pct?.[part] ?? steps[partKey] ?? defaultStep;
@@ -451,19 +659,74 @@ function initializeConfigForm() {
   }
 
   if (servoTableBody) {
+    const headerMap = document.getElementById("servo-header-map");
+    const headerMin = document.getElementById("servo-header-min");
+    const headerMax = document.getElementById("servo-header-max");
+    if (headerMap) headerMap.textContent = driverIsPca ? "Channel" : "Pin";
+    if (headerMin) headerMin.textContent = "Min";
+    if (headerMax) headerMax.textContent = "Max";
+
     servoTableBody.innerHTML = "";
     (cfg.servos || []).forEach((servo) => {
+      const partName = servo.part || `pin-${servo.pin}`;
+      const partKey = partName.toLowerCase();
       const row = document.createElement("tr");
-      row.dataset.pin = servo.pin;
-      row.dataset.part = (servo.part || "").toLowerCase();
+      row.dataset.part = partKey;
+      row.dataset.partLabel = partName;
       const minVal = Array.isArray(servo.range) ? servo.range[0] : "";
       const maxVal = Array.isArray(servo.range) ? servo.range[1] : "";
-      row.innerHTML = `
-        <td>${servo.part}</td>
-        <td>${servo.pin}</td>
-        <td><input type="number" data-role="min" value="${minVal}" step="1" /></td>
-        <td><input type="number" data-role="max" value="${maxVal}" step="1" /></td>
-      `;
+
+      const partCell = document.createElement("td");
+      partCell.className = "cell-part";
+      partCell.innerHTML = `<strong>${partName}</strong>`;
+      const subLabel = driverIsPca
+        ? servo.pin != null
+          ? `<span class="cell-sub">Pin ${servo.pin}</span>`
+          : ""
+        : servo.channel != null
+          ? `<span class="cell-sub">Channel ${servo.channel}</span>`
+          : "";
+      if (subLabel) {
+        partCell.innerHTML += subLabel;
+      }
+      row.appendChild(partCell);
+
+      const mapCell = document.createElement("td");
+      mapCell.className = "cell-map";
+      const mapInput = document.createElement("input");
+      mapInput.type = "number";
+      mapInput.dataset.role = driverIsPca ? "channel" : "pin";
+      mapInput.step = "1";
+      if (driverIsPca) {
+        mapInput.min = "0";
+        mapInput.max = "15";
+        mapInput.value = servo.channel ?? "";
+        mapInput.placeholder = "0-15";
+      } else {
+        mapInput.value = servo.pin ?? "";
+        mapInput.placeholder = "GPIO";
+      }
+      mapCell.appendChild(mapInput);
+      row.appendChild(mapCell);
+
+      const minCell = document.createElement("td");
+      const minInput = document.createElement("input");
+      minInput.type = "number";
+      minInput.dataset.role = "min";
+      minInput.step = "1";
+      if (minVal !== "") minInput.value = minVal;
+      minCell.appendChild(minInput);
+      row.appendChild(minCell);
+
+      const maxCell = document.createElement("td");
+      const maxInput = document.createElement("input");
+      maxInput.type = "number";
+      maxInput.dataset.role = "max";
+      maxInput.step = "1";
+      if (maxVal !== "") maxInput.value = maxVal;
+      maxCell.appendChild(maxInput);
+      row.appendChild(maxCell);
+
       servoTableBody.appendChild(row);
     });
   }
@@ -471,7 +734,19 @@ function initializeConfigForm() {
 
 async function pollLoop() {
   await refreshStatus();
+  await refreshLogs();
   setTimeout(pollLoop, statusRefreshMs);
 }
 
-pollLoop();
+function formatTimestamp(value) {
+  if (!value) return "";
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch (err) {
+    return String(value);
+  }
+}

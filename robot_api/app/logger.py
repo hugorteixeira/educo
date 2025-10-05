@@ -99,3 +99,20 @@ class LogManager:
             except json.JSONDecodeError:
                 continue
         return entries
+
+    def iter_all_entries(self) -> List[Dict[str, Any]]:
+        if not self.log_file.exists():
+            return []
+        with self._lock:
+            try:
+                with self.log_file.open("r", encoding="utf-8") as handle:
+                    lines = handle.readlines()
+            except OSError:
+                return []
+        entries: List[Dict[str, Any]] = []
+        for line in lines:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return entries
