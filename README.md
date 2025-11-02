@@ -86,15 +86,11 @@ graph TD
 - ✨ Move logging: pre/post camera snapshots + structured JSONL entries for ML training.
 
 ### Up Next
-- 🔍 Integrate AI-assisted vision loop (autonomous reactions to camera frames).
-- 🧠 Start fine-tuning a VLA model using the new move/image logs.
-- ☁️ Publish a public demo (Hugging Face Space or lightweight cloud instance).
-- 🛠️ Add calibration helpers (auto range detection, servo diagnostics).
+- 🔍 Mobile First - Always.
 
-### Longer Term Ideas
-- 📦 Modular lesson plans + worksheets.
-- 🪛 Swappable hardware profiles (Jetson Nano, Raspberry Pi 5, etc.).
-- 🌐 Multi-user remote sessions with permissions.
+Building, connecting, running code for the robot is not hard, but it requires a bunch of equipment and time to do it properly. Since time and a bunch of computers and connectors and whatnot are not exactly cheap for unprivileged kids and their parents, it was decided that this project has to be mobile first.
+
+The robot has to run on a cheap Android smartphone with Termux or a Python web interface made with FastAPI, otherwise, it could be more frustrating than educative for the kids. Also, computers are losing popularity to smartphones since the 2010s and the less that is required, the better it is.
 
 ## 🧾 Data Capture for ML Training
 Toggle the “Log moves” switch in the UI to record each servo move:
