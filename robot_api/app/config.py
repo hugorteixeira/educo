@@ -80,9 +80,15 @@ chip4 = gpiochip3
 line4 = 27
 
 [pca9685]
+mode = local
 i2c_bus = 5
 address = 0x40
 frequency_hz = 50
+bridge_base_url =
+bridge_timeout_s = 3.0
+bridge_reinit = true
+bridge_sda =
+bridge_scl =
 
 [ui]
 status_refresh_ms = 2000
@@ -115,9 +121,15 @@ class UIConfig:
 
 @dataclass
 class PCA9685Config:
+    mode: str
     bus: int
     address: int
     freq_hz: int
+    bridge_base_url: str = ""
+    bridge_timeout_s: float = 3.0
+    bridge_reinit: bool = True
+    bridge_sda: Optional[int] = None
+    bridge_scl: Optional[int] = None
 
 @dataclass
 class ServoDef:
@@ -354,6 +366,9 @@ def load_config(path: Optional[str] = None) -> AppConfig:
 
     pca_cfg: Optional[PCA9685Config] = None
     if servo_driver == "pca9685":
+        mode = cfg.get("pca9685", "mode", fallback="local").strip().lower() or "local"
+        if mode not in {"local", "esp32"}:
+            mode = "local"
         bus = cfg.getint("pca9685", "i2c_bus", fallback=5)
         addr_raw = cfg.get("pca9685", "address", fallback="0x40").strip()
         try:
@@ -361,7 +376,26 @@ def load_config(path: Optional[str] = None) -> AppConfig:
         except ValueError:
             address = 0x40
         freq_hz = cfg.getint("pca9685", "frequency_hz", fallback=50)
-        pca_cfg = PCA9685Config(bus=bus, address=address, freq_hz=freq_hz)
+        bridge_base_url = cfg.get(
+            "pca9685",
+            "bridge_base_url",
+            fallback=cfg.get("pca9685", "esp32_base_url", fallback=""),
+        ).strip()
+        bridge_timeout_s = cfg.getfloat("pca9685", "bridge_timeout_s", fallback=3.0)
+        bridge_reinit = cfg.getboolean("pca9685", "bridge_reinit", fallback=True)
+        bridge_sda = _parse_optional_int(cfg.get("pca9685", "bridge_sda", fallback="").strip())
+        bridge_scl = _parse_optional_int(cfg.get("pca9685", "bridge_scl", fallback="").strip())
+        pca_cfg = PCA9685Config(
+            mode=mode,
+            bus=bus,
+            address=address,
+            freq_hz=freq_hz,
+            bridge_base_url=bridge_base_url,
+            bridge_timeout_s=bridge_timeout_s,
+            bridge_reinit=bridge_reinit,
+            bridge_sda=bridge_sda,
+            bridge_scl=bridge_scl,
+        )
 
     return AppConfig(
         servo_driver=servo_driver,

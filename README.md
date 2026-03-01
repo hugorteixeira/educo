@@ -8,6 +8,7 @@ Low-cost robotics for schools and NGOs—now with a full Python control stack, l
 - [Mission](#mission)
 - [Current Demo](#current-demo)
 - [Quick Start](#quick-start)
+- [Project Layout](#project-layout)
 - [ESP32-C3 + PCA9685 API](#esp32-c3--pca9685-api)
 - [Terminal Joystick + Servo Calibration](#terminal-joystick--servo-calibration)
 - [Troubleshooting Matrix](#troubleshooting-matrix)
@@ -44,10 +45,18 @@ Python app for controlling the robot with a WASD-based API interface and logging
 
 💡 Permissions: if you use software PWM (`servo_driver = soft`), add your user to the `gpio` group so libgpiod can access `/dev/gpiochip*`.
 
+## 🗂️ Project Layout
+- `robot_api/`: active Python FastAPI app (UI, REST API, servo abstraction, logging).
+- `tools/`: active utilities and hardware tooling.
+  - `tools/robot_api_esp32c3_pca9685/`: active ESP32-C3 firmware for PCA9685 bridge mode.
+  - `tools/esp32_pca9685_setup.sh`: one-shot setup/diagnostic checks for ESP32 bridge.
+  - `tools/esp32_pca9685_joystick.sh`: interactive SSH joystick + per-servo calibration.
+- `testing_area/`: legacy/experimental scripts kept for reference only (not part of the active control path).
+
 ## 🔌 ESP32-C3 + PCA9685 API
 This repo also includes a standalone ESP32-C3 firmware focused only on PCA9685 servo control:
 
-- Firmware path: `robot_api_esp32c3_pca9685/sketch/sketch.ino`
+- Firmware path: `tools/robot_api_esp32c3_pca9685/sketch/sketch.ino`
 - Driver mode: HTTP API on ESP32 (no FastAPI dependency)
 - Confirmed servo target: SG90 microservos at 50 Hz
 
@@ -75,6 +84,35 @@ curl "http://$ESP/api/pca/scan"
 curl "http://$ESP/api/pca/move?channel=0&us=1500"
 ```
 
+### Setup helper script
+To run a full reinit + health + scan + min/max/center move check in one command:
+```bash
+./tools/esp32_pca9685_setup.sh 192.168.15.2
+```
+
+### Use `robot_api` with ESP32 bridge mode
+The Python FastAPI stack in `robot_api/` can now drive servos through the ESP32 firmware bridge instead of local `smbus2`.
+
+Set this in `robot_api/robot_api.cfg`:
+```ini
+[mode]
+servo_driver = pca9685
+
+[pca9685]
+mode = esp32
+address = 0x40
+bridge_base_url = http://192.168.15.2
+bridge_timeout_s = 3.0
+bridge_reinit = true
+bridge_sda = 7
+bridge_scl = 8
+```
+
+Then run:
+```bash
+./run_robot.sh
+```
+
 ### Debugging tip
 Use `GET /api/pca/debug?channel=<n>&us=<pulse>` to confirm register writes are sticking.
 For a healthy PCA9685 @ 50 Hz, expect values like:
@@ -91,18 +129,18 @@ If API replies `ok:true` but servos still do not move, validate hardware first:
 ## 🎮 Terminal Joystick + Servo Calibration
 Interactive SSH-friendly controller script:
 
-- Script path: `testing_area/esp32_pca9685_joystick.sh`
+- Script path: `tools/esp32_pca9685_joystick.sh`
 - Purpose: manual joystick control, min/max sweep, and persistent per-servo calibration
 
 ### Run
 ```bash
-./testing_area/esp32_pca9685_joystick.sh 192.168.15.2
+./tools/esp32_pca9685_joystick.sh 192.168.15.2
 ```
 
 ### Optional overrides
 ```bash
 PCA_ADDR=0x40 PCA_SDA=7 PCA_SCL=8 MIN_US=1000 MAX_US=2000 CHANNELS=0,4,12,8 \
-./testing_area/esp32_pca9685_joystick.sh 192.168.15.2
+./tools/esp32_pca9685_joystick.sh 192.168.15.2
 ```
 
 ### Key controls
